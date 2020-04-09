@@ -1,114 +1,140 @@
-import React from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { useParams } from 'react-router-dom';
-import styled from 'styled-components';
+import React from "react";
+import styled from "styled-components";
+
+import { useParams } from "react-router-dom";
+import { useSelector } from "react-redux";
+
+import { humanizeNumber } from "../../utils";
+
+import { authReducer } from "../../reducers/auth-reducer";
+
+//import CircularProgress from "@material-ui/core/CircularProgress";
 
 import {
-  requestAllArtistInfo,
-  receiveArtistProfile,
-  receiveRelatedArtists,
-  receiveTopTracks,
-  finishReceivingAllArtistInfo,
+  requestArtistInfo,
+  receiveArtistInfo,
   receiveArtistError,
-} from '../../actions';
-import { getArtist, getArtistStatus } from '../../reducers/artists.reducer';
-import { getAccessToken } from '../../reducers/auth.reducer';
-import {
-  fetchRelatedArtists,
-  fetchArtistProfile,
-  fetchTopTracks,
-} from '../../helpers/api.helpers';
+} from "../../actions";
 
-import FullScreenSpinner from '../FullScreenSpinner';
+import { useDispatch } from "react-redux";
 
-import Header from './Header';
-import TopTracks from './TopTracks';
-import GenreTags from './GenreTags';
-import RelatedArtists from './RelatedArtists';
+import { fetchArtistProfile } from "../../helpers/api-helpers";
 
-const ArtistDetailsContainer = () => {
-  const artist = useSelector(getArtist);
-  const artistStatus = useSelector(getArtistStatus);
+//dispatch le fetchartist profile au sotre
 
-  useSpotifyData();
-
-  if (artistStatus === 'loading') {
-    return <FullScreenSpinner />;
-  }
-
-  if (!artist) {
-    // SOmething's gone wrong!
-    return 'Error';
-  }
-
-  return (
-    <>
-      <Section>
-        <Header
-          photoSrc={artist.profile.images[1].url}
-          name={artist.profile.name}
-          followerCount={artist.profile.followers.total}
-        />
-      </Section>
-      <Section>
-        {artist.topTracks && <TopTracks tracks={artist.topTracks} />}
-      </Section>
-      <Section>
-        {artist.profile.genres && <GenreTags genres={artist.profile.genres} />}
-      </Section>
-      <Section>
-        {artist.relatedArtists && (
-          <RelatedArtists artists={artist.relatedArtists} />
-        )}
-      </Section>
-    </>
-  );
-};
-
-const useSpotifyData = () => {
+const ArtistRoute = () => {
   const { artistId } = useParams();
-
   const dispatch = useDispatch();
-
-  const accessToken = useSelector(getAccessToken);
+  const accessToken = useSelector((state) => state.auth.token);
+  const artistStatus = useSelector((state) => state.artists.status);
+  const artistProfile = useSelector((state) => state.artists.currentArtist);
 
   React.useEffect(() => {
     if (!accessToken) {
       return;
     }
+    dispatch(requestArtistInfo());
 
-    dispatch(requestAllArtistInfo());
-
-    const artistProfilePromise = fetchArtistProfile(accessToken, artistId).then(
-      json => {
-        dispatch(receiveArtistProfile(json));
-      }
+    fetchArtistProfile(accessToken, artistId).then((data) =>
+      dispatch(receiveArtistInfo(data))
     );
-
-    const relatedArtistsPromise = fetchRelatedArtists(
-      accessToken,
-      artistId
-    ).then(json => {
-      dispatch(receiveRelatedArtists(json));
-    });
-
-    const topTracksPromise = fetchTopTracks(accessToken, artistId).then(
-      json => {
-        dispatch(receiveTopTracks(json));
-      }
-    );
-
-    Promise.all([artistProfilePromise, relatedArtistsPromise, topTracksPromise])
-      .then(() => dispatch(finishReceivingAllArtistInfo()))
-      .catch(err => {
-        console.error(err);
-        dispatch(receiveArtistError(err));
-      });
   }, [accessToken, artistId]);
+
+  if (artistStatus === "loading") {
+    return <div>LOADING</div>;
+  }
+
+  const numOfFollowers = artistProfile.followers.total;
+
+  return (
+    <Wrapper>
+      <Header>
+        <Avatar src={artistProfile.images[0].url} />
+        <Name>{artistProfile.name}</Name>
+        <FanBox>
+          <Fans>{humanizeNumber(numOfFollowers)} </Fans> followers
+        </FanBox>
+      </Header>
+
+      <TagsTitle>Tags</TagsTitle>
+      <Genre>
+        {artistProfile.genres.slice(0, 2).map((genre) => (
+          <Tags>{genre}</Tags>
+        ))}
+      </Genre>
+    </Wrapper>
+  );
 };
 
-const Section = styled.section`
-  margin-bottom: 64px;
+const Wrapper = styled.div`
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #2f4f4f;
+  height: 100vh;
+  width: 100vh;
 `;
 
-export default ArtistDetailsContainer;
+const Header = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const Avatar = styled.img`
+  display: block;
+  object-fit: cover;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+`;
+
+const Name = styled.div`
+  margin-top: -30px;
+  text-align: center;
+  font-style: normal;
+  font-weight: bold;
+  font-size: 30px;
+  line-height: 45px;
+  color: #f2f2f2;
+  text-shadow: 4px 8px 25px #000000, 0px 4px 4px rgba(0, 0, 0, 0.5),
+    1px 2px 2px rgba(0, 0, 0, 0.75);
+`;
+
+const FanBox = styled.div`
+  display: flex;
+  margin-top: 100px;
+`;
+
+const Fans = styled.span`
+  font-weight: bold;
+  color: #00ffff;
+`;
+
+const TagsTitle = styled.div`
+  color: white;
+  font-size: 21;
+  margin-top: 100px;
+  margin-bottom: 0px;
+`;
+
+const Genre = styled.div`
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+`;
+
+const Tags = styled.div`
+  position: relative;
+  display: flex;
+  border-radius: 6px;
+  background: #0a1010;
+  color: white;
+  padding: 8px 20px;
+  margin: 0 8px;
+  font-weight: 600;
+  font-size: 11px;
+`;
+
+export default ArtistRoute;
